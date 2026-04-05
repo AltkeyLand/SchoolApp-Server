@@ -7,7 +7,7 @@ app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"message": "에이린 선생님의 최종 처방전! 이제 마파두부 덮밥이 보일 거야!"}
+    return {"message": "절대이사이트에들어오지마"}
 
 @app.get("/meal")
 def get_meal(date: str = None):
@@ -98,15 +98,15 @@ def get_weather():
         
         # 3. 에이린 선생님의 특별 처방 (날씨에 따른 조언)
         # 나중에 유니티 앱 화면 하단에 띄워주면 아주 센스 있겠지?
-        advice = "오늘도 활기찬 학교 생활 보내렴!"
+        advice = "오늘도 활기찬 학교 생활!"
         temp_int = int(temp_c)
         
         if "Rain" in current["weatherDesc"][0]["value"] or "Shower" in current["weatherDesc"][0]["value"]:
-            advice = "비 소식이 있어! 우산을 꼭 챙기렴. ☔"
+            advice = "비 소식이 있어! 우산을 꼭 챙겨. ☔"
         elif temp_int < 5:
-            advice = "날씨가 아주 춥구나. 따뜻하게 입고 가야 해! 🧣"
+            advice = "날씨가 아주 추우니, 따뜻하게 입고 가야 해. 🧣"
         elif temp_int > 28:
-            advice = "날씨가 많이 덥네. 물을 자주 마시렴! 💧"
+            advice = "날씨가 많이 덥네. 물을 자주 마셔. 💧"
 
         # 4. 유니티 친구에게 줄 예쁜 봉투에 담기
         return {
