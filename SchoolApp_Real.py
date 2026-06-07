@@ -25,6 +25,7 @@ CURRENT_APP_VERSION = "1.0.0" # 현재 최신 앱 버전
 MIN_REQ_VERSION = "1.0.0"     # 이 버전보다 낮으면 앱 실행 막음
 IS_MAINTENANCE = False        # 🚨 이 값을 True로 바꾸고 Render에서 재시작하면 앱 차단됨!
 MAINTENANCE_MSG = "현재 서버 업데이트 중입니다. 잠시만 기다려주세요! 🛠️"
+GRADUATION_DATE = "2027-01-08" # 대평고 졸업식 날짜 (예시)
 
 # 별점을 임시로 저장할 딕셔너리 (Render가 재시작되면 초기화됨. 나중에 진짜 DB로 변경 추천!)
 meal_ratings_db = {}
@@ -54,6 +55,7 @@ def get_app_status():
         "is_maintenance": IS_MAINTENANCE,
         "maintenance_message": MAINTENANCE_MSG,
         "notice": "이번 주 금요일 동아리 발표가 있습니다! 🎉" # 앱 메인에 띄울 공지사항
+        "graduation_date": GRADUATION_DATE # 이거 한 줄 추가!
     }
 
 
@@ -222,3 +224,38 @@ def get_meal_rating(date: str):
             "average_score": 0.0, 
             "total_votes": 0
         }
+
+# SchoolApp_Real.py 에 추가할 코드
+
+@app.get("/schedule")
+def get_schedule(month: str = None):
+    # month를 입력 안 하면 이번 달(예: "202606")을 기본값으로 사용
+    if not month:
+        month = datetime.now().strftime("%Y%m")
+        
+    url = "https://open.neis.go.kr/hub/SchoolSchedule"
+    params = {
+        "Type": "json",
+        "ATPT_OFCDC_SC_CODE": "J10",
+        "SD_SCHUL_CODE": "7530554",
+        "AA_FROM_YMD": f"{month}01", # 이번 달 1일부터
+        "AA_TO_YMD": f"{month}31"    # 이번 달 31일까지
+    }
+    
+    try:
+        response = requests.get(url, params=params).json()
+        events_row = response["SchoolSchedule"][1]["row"]
+        
+        # 날짜와 행사 이름만 예쁘게 뽑아서 리스트로 만들기
+        schedule_list = []
+        for row in events_row:
+            # 행사가 있는 날만 추가 (토요휴업일 같은 건 제외하려면 여기서 필터링 가능)
+            if row["EVENT_NM"]:
+                schedule_list.append({
+                    "date": row["AA_YMD"],
+                    "event": row["EVENT_NM"]
+                })
+        
+        return {"success": True, "month": month, "schedule": schedule_list}
+    except:
+        return {"success": False, "message": "이번 달 학사일정이 없거나 불러오지 못했어."}
