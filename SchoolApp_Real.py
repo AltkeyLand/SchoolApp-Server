@@ -2,33 +2,83 @@ import requests
 import re
 from datetime import datetime
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI()
 
+# ---------------------------------------------------------
+# 🌐 CORS 설정 (유니티나 웹에서 API 호출할 때 차단되지 않게 함)
+# ---------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # 모든 접근 허용 (실제 배포때는 특정 도메인만 넣어도 됨)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------
+# ⚙️ 전역 변수 설정 (앱 상태 및 임시 DB)
+# ---------------------------------------------------------
+CURRENT_APP_VERSION = "1.0.0" # 현재 최신 앱 버전
+MIN_REQ_VERSION = "1.0.0"     # 이 버전보다 낮으면 앱 실행 막음
+IS_MAINTENANCE = False        # 🚨 이 값을 True로 바꾸고 Render에서 재시작하면 앱 차단됨!
+MAINTENANCE_MSG = "현재 서버 업데이트 중입니다. 잠시만 기다려주세요! 🛠️"
+
+# 별점을 임시로 저장할 딕셔너리 (Render가 재시작되면 초기화됨. 나중에 진짜 DB로 변경 추천!)
+meal_ratings_db = {}
+
+
+# ---------------------------------------------------------
+# 1️⃣ 기본 엔드포인트
+# ---------------------------------------------------------
 @app.get("/")
 def read_root():
     return {"message": "절대이사이트에들어오지마"}
 
+
+# ---------------------------------------------------------
+# 2️⃣ [앱 컨트롤 타워] 유지보수 및 업데이트 관리 API
+# ---------------------------------------------------------
+@app.get("/status")
+def get_app_status():
+    """
+    유니티 앱이 켜질 때 가장 먼저 호출해야 하는 API.
+    버전 체크와 서버 점검 상태를 알려줌.
+    """
+    return {
+        "success": True,
+        "latest_version": CURRENT_APP_VERSION,
+        "min_version": MIN_REQ_VERSION,
+        "is_maintenance": IS_MAINTENANCE,
+        "maintenance_message": MAINTENANCE_MSG,
+        "notice": "이번 주 금요일 동아리 발표가 있습니다! 🎉" # 앱 메인에 띄울 공지사항
+    }
+
+
+# ---------------------------------------------------------
+# 3️⃣ 급식 조회 API
+# ---------------------------------------------------------
 @app.get("/meal")
 def get_meal(date: str = None):
-    # 1. 날짜 설정 (안 적으면 오늘, 적으면 그 날짜)
+    # 날짜 설정 (안 적으면 오늘, 적으면 그 날짜)
     if not date:
         date = datetime.now().strftime("%Y%m%d")
     
-    # 2. 🛡️ 학교 코드 수정 (네가 성공했던 바로 그 코드: 7530554)
+    # NEIS API 설정
     url = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     params = {
         "Type": "json",
         "ATPT_OFCDC_SC_CODE": "J10", # 경기도 교육청
-        "SD_SCHUL_CODE": "7530554",  # ⭐ 여기가 핵심! 네가 성공했던 코드로 바꿨어!
+        "SD_SCHUL_CODE": "7530554",  # 대평고등학교 코드
         "MLSV_YMD": date
     }
     
-    response = requests.get(url, params=params)
-    data = response.json()
-    
-    # 3. 데이터가 있는지 확인하고 예쁘게 다듬기
     try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        
         # 급식 데이터 뭉치 가져오기
         meals_row = data["mealServiceDietInfo"][1]["row"]
         
@@ -57,15 +107,17 @@ def get_meal(date: str = None):
             "meals": result_meals
         }
         
-    except:
-        # 데이터가 없을 때의 친절한 설명
+    except Exception as e:
         return {
             "success": False,
-            "message": "급식 데이터를 찾을 수 없어. 날짜를 확인해줘!",
-            "debug_data": data # 뭐가 문제인지 원본 데이터 보여주기
+            "message": "급식 데이터를 찾을 수 없어. 쉬는 날이거나 날짜를 확인해줘!",
+            "error": str(e)
         }
 
-# 학교 찾기 기능도 혹시 모르니 아래에 붙여둘게!
+
+# ---------------------------------------------------------
+# 4️⃣ 학교 찾기 API
+# ---------------------------------------------------------
 @app.get("/find_school")
 def find_school(name: str):
     url = "https://open.neis.go.kr/hub/schoolInfo"
@@ -78,26 +130,24 @@ def find_school(name: str):
         return {"error": "학교를 찾을 수 없습니다."}
 
 
+# ---------------------------------------------------------
+# 5️⃣ 날씨 API
+# ---------------------------------------------------------
 @app.get("/weather")
 def get_weather():
-    # 1. 수원(Suwon) 날씨 정보를 JSON 형태로 주는 마법의 주소야.
-    # 인증키 없이도 쓸 수 있어서 아주 간편하단다!
     url = "https://wttr.in/Suwon?format=j1"
     
     try:
         response = requests.get(url)
         data = response.json()
         
-        # 2. 복잡한 데이터 속에서 '현재 날씨' 부분만 쏙 빼내기
         current = data["current_condition"][0]
+        temp_c = current["temp_C"]
+        weather_desc = current["lang_ko"][0]["value"] if "lang_ko" in current else current["weatherDesc"][0]["value"]
+        humidity = current["humidity"]
+        feels_like = current["FeelsLikeC"]
         
-        temp_c = current["temp_C"]        # 현재 온도 (섭씨)
-        weather_desc = current["lang_ko"][0]["value"] if "lang_ko" in current else current["weatherDesc"][0]["value"] # 날씨 상태 (맑음, 흐림 등)
-        humidity = current["humidity"]    # 습도
-        feels_like = current["FeelsLikeC"] # 체감 온도
-        
-        # 3. 에이린 선생님의 특별 처방 (날씨에 따른 조언)
-        # 나중에 유니티 앱 화면 하단에 띄워주면 아주 센스 있겠지?
+        # 에이린 선생님의 특별 처방
         advice = "오늘도 활기찬 학교 생활!"
         temp_int = int(temp_c)
         
@@ -108,7 +158,6 @@ def get_weather():
         elif temp_int > 28:
             advice = "날씨가 많이 덥네. 물을 자주 마셔. 💧"
 
-        # 4. 유니티 친구에게 줄 예쁜 봉투에 담기
         return {
             "success": True,
             "location": "Suwon",
@@ -124,4 +173,52 @@ def get_weather():
             "success": False,
             "message": "날씨 정보를 가져오는 데 실패했어.",
             "error": str(e)
+        }
+
+
+# ---------------------------------------------------------
+# 6️⃣ [참여형 기능] 급식 별점 시스템 (POST, GET)
+# ---------------------------------------------------------
+# 유니티에서 보낼 데이터의 형식을 정의
+class Rating(BaseModel):
+    date: str   # 예: "20260607"
+    score: int  # 1 ~ 5 별점
+
+@app.post("/meal/rating")
+def add_meal_rating(rating: Rating):
+    """유니티에서 별점을 서버로 보낼 때 사용하는 API"""
+    if rating.date not in meal_ratings_db:
+        meal_ratings_db[rating.date] = []
+        
+    meal_ratings_db[rating.date].append(rating.score)
+    
+    total_votes = len(meal_ratings_db[rating.date])
+    avg_score = sum(meal_ratings_db[rating.date]) / total_votes
+    
+    return {
+        "success": True,
+        "message": "별점이 성공적으로 반영되었어!",
+        "date": rating.date,
+        "average_score": round(avg_score, 1),
+        "total_votes": total_votes
+    }
+
+@app.get("/meal/rating")
+def get_meal_rating(date: str):
+    """유니티에서 특정 날짜의 평균 별점을 물어볼 때 사용하는 API"""
+    if date in meal_ratings_db and len(meal_ratings_db[date]) > 0:
+        avg_score = sum(meal_ratings_db[date]) / len(meal_ratings_db[date])
+        return {
+            "success": True,
+            "date": date,
+            "average_score": round(avg_score, 1),
+            "total_votes": len(meal_ratings_db[date])
+        }
+    else:
+        # 아직 투표가 없는 경우
+        return {
+            "success": True,
+            "date": date, 
+            "average_score": 0.0, 
+            "total_votes": 0
         }
