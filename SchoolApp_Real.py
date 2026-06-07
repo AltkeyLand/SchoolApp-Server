@@ -54,7 +54,7 @@ def get_app_status():
         "min_version": MIN_REQ_VERSION,
         "is_maintenance": IS_MAINTENANCE,
         "maintenance_message": MAINTENANCE_MSG,
-        "notice": "이번 주 금요일 동아리 발표가 있습니다! 🎉" # 앱 메인에 띄울 공지사항
+        "notice": "이번 주 금요일 동아리 발표가 있습니다! 🎉", # 앱 메인에 띄울 공지사항
         "graduation_date": GRADUATION_DATE # 이거 한 줄 추가!
     }
 
