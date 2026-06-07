@@ -110,7 +110,7 @@ def get_meal(date: str = None):
     except Exception as e:
         return {
             "success": False,
-            "message": "급식 데이터를 찾을 수 없어. 쉬는 날이거나 날짜를 확인해줘!",
+            "message": "급식 데이터를 찾을 수 없습니다. 날짜를 확인해주세요.",
             "error": str(e)
         }
 
@@ -152,11 +152,11 @@ def get_weather():
         temp_int = int(temp_c)
         
         if "Rain" in current["weatherDesc"][0]["value"] or "Shower" in current["weatherDesc"][0]["value"]:
-            advice = "비 소식이 있어! 우산을 꼭 챙겨. ☔"
+            advice = "비 소식이 있으니, 우산을 꼭 챙기세요. ☔"
         elif temp_int < 5:
-            advice = "날씨가 아주 추우니, 따뜻하게 입고 가야 해. 🧣"
+            advice = "날씨가 아주 추우니, 따뜻하게 입고 가야 합니다. 🧣"
         elif temp_int > 28:
-            advice = "날씨가 많이 덥네. 물을 자주 마셔. 💧"
+            advice = "날씨가 많이 덥습니다. 물을 자주 마셔주세요. ☀️"
 
         return {
             "success": True,
@@ -171,7 +171,7 @@ def get_weather():
     except Exception as e:
         return {
             "success": False,
-            "message": "날씨 정보를 가져오는 데 실패했어.",
+            "message": "날씨 정보를 가져오는 데 실패했습니다.",
             "error": str(e)
         }
 
@@ -197,7 +197,7 @@ def add_meal_rating(rating: Rating):
     
     return {
         "success": True,
-        "message": "별점이 성공적으로 반영되었어!",
+        "message": "별점이 성공적으로 반영되었습니다!",
         "date": rating.date,
         "average_score": round(avg_score, 1),
         "total_votes": total_votes
