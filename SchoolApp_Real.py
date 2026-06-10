@@ -261,24 +261,29 @@ def get_schedule(month: str = None):
 
 
 # ---------------------------------------------------------
-# 7️⃣ 시간표 조회 API
+# 7️⃣ 시간표 조회 API (날짜 처리 기능 강화)
 # ---------------------------------------------------------
 @app.get("/timetable")
 def get_timetable(grade: str, class_nm: str, date: str = None):
     """
-    학년(grade)과 반(class_nm)을 입력받아 시간표를 조회합니다.
-    (예: /timetable?grade=1&class_nm=2)
+    학년(grade)과 반(class_nm), 조회할 날짜(date)를 입력받아 시간표를 조회합니다.
+    - date 예시: "2026-06-10", "2026/06/10", "20260610" 모두 가능
+    - date를 입력하지 않으면 기본값으로 오늘 날짜를 조회합니다.
     """
-    # 날짜를 지정하지 않으면 오늘 날짜 사용
     if not date:
+        # 날짜를 입력하지 않았다면 오늘 날짜를 기본값으로 사용 (예: "20260610")
         date = datetime.now().strftime("%Y%m%d")
+    else:
+        # 프론트엔드에서 "2026-06-10"처럼 하이픈(-)이나 슬래시(/)를 넣어서 보내더라도
+        # 숫자만 남기고 제거하여 나이스 규격("20260610")으로 맞춥니다.
+        date = re.sub(r'[^0-9]', '', date)
         
     url = "https://open.neis.go.kr/hub/hisTimetable"
     params = {
         "Type": "json",
         "ATPT_OFCDC_SC_CODE": "J10", # 경기도교육청
         "SD_SCHUL_CODE": "7530554",  # 대평고등학교
-        "ALL_TI_YMD": date,
+        "ALL_TI_YMD": date,          # 정제된 8자리 날짜 (YYYYMMDD)
         "GRADE": grade,
         "CLASS_NM": class_nm
     }
@@ -287,31 +292,30 @@ def get_timetable(grade: str, class_nm: str, date: str = None):
         response = requests.get(url, params=params).json()
         timetable_row = response["hisTimetable"][1]["row"]
         
-        # 교시와 과목명 정보만 정제하여 리스트 생성
+        # 교시와 과목명 정보 추출
         timetable_list = []
         for row in timetable_row:
             timetable_list.append({
-                "period": row["PERIO"],       # 교시 (예: 1, 2, 3...)
-                "subject": row["ITRT_CNTNT"]  # 과목명 (예: 수학, 영어...)
+                "period": row["PERIO"],       # 교시 (1, 2, 3...)
+                "subject": row["ITRT_CNTNT"]  # 과목명 (국어, 영어...)
             })
             
-        # 교시 오름차순으로 정렬해서 보기 좋게 만듦
+        # 교시 순서대로 정렬
         timetable_list.sort(key=lambda x: int(x["period"]))
         
         return {
             "success": True,
             "school": "대평고등학교",
-            "date": date,
+            "date": date, # 가독성을 위해 프론트엔드에 다시 보낼 때도 전달
             "grade": grade,
             "class_nm": class_nm,
             "timetable": timetable_list
         }
         
     except Exception as e:
-        # 주말이나 방학처럼 시간표 데이터가 존재하지 않을 때 예외 처리
         return {
             "success": False,
-            "message": "해당 날짜의 시간표 데이터를 찾을 수 없습니다. (주말, 공휴일, 방학 등)",
+            "message": f"{date[:4]}년 {date[4:6]}월 {date[6:8]}일의 시간표 데이터를 찾을 수 없습니다. (주말, 공휴일, 방학 등)",
             "error": str(e)
         }
 
