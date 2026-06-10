@@ -55,7 +55,7 @@ def get_app_status():
         "is_maintenance": IS_MAINTENANCE,
         "maintenance_message": MAINTENANCE_MSG,
         "notice": "이번 주 금요일 동아리 발표가 있습니다! 🎉", # 앱 메인에 띄울 공지사항
-        "graduation_date": GRADUATION_DATE # 이거 한 줄 추가!
+        "graduation_date": GRADUATION_DATE
     }
 
 
@@ -149,7 +149,6 @@ def get_weather():
         humidity = current["humidity"]
         feels_like = current["FeelsLikeC"]
         
-        # 에이린 선생님의 특별 처방
         advice = "오늘도 활기찬 학교 생활!"
         temp_int = int(temp_c)
         
@@ -258,4 +257,114 @@ def get_schedule(month: str = None):
         
         return {"success": True, "month": month, "schedule": schedule_list}
     except:
-        return {"success": False, "message": "이번 달 학사일정이 없거나 불러오지 못했어."}
+        return {"success": False, "message": "이번 달 학사일정이 없거나 불러오지 못했습니다."}
+
+
+# ---------------------------------------------------------
+# 7️⃣ 시간표 조회 API
+# ---------------------------------------------------------
+@app.get("/timetable")
+def get_timetable(grade: str, class_nm: str, date: str = None):
+    """
+    학년(grade)과 반(class_nm)을 입력받아 시간표를 조회합니다.
+    (예: /timetable?grade=1&class_nm=2)
+    """
+    # 날짜를 지정하지 않으면 오늘 날짜 사용
+    if not date:
+        date = datetime.now().strftime("%Y%m%d")
+        
+    url = "https://open.neis.go.kr/hub/hisTimetable"
+    params = {
+        "Type": "json",
+        "ATPT_OFCDC_SC_CODE": "J10", # 경기도교육청
+        "SD_SCHUL_CODE": "7530554",  # 대평고등학교
+        "ALL_TI_YMD": date,
+        "GRADE": grade,
+        "CLASS_NM": class_nm
+    }
+    
+    try:
+        response = requests.get(url, params=params).json()
+        timetable_row = response["hisTimetable"][1]["row"]
+        
+        # 교시와 과목명 정보만 정제하여 리스트 생성
+        timetable_list = []
+        for row in timetable_row:
+            timetable_list.append({
+                "period": row["PERIO"],       # 교시 (예: 1, 2, 3...)
+                "subject": row["ITRT_CNTNT"]  # 과목명 (예: 수학, 영어...)
+            })
+            
+        # 교시 오름차순으로 정렬해서 보기 좋게 만듦
+        timetable_list.sort(key=lambda x: int(x["period"]))
+        
+        return {
+            "success": True,
+            "school": "대평고등학교",
+            "date": date,
+            "grade": grade,
+            "class_nm": class_nm,
+            "timetable": timetable_list
+        }
+        
+    except Exception as e:
+        # 주말이나 방학처럼 시간표 데이터가 존재하지 않을 때 예외 처리
+        return {
+            "success": False,
+            "message": "해당 날짜의 시간표 데이터를 찾을 수 없습니다. (주말, 공휴일, 방학 등)",
+            "error": str(e)
+        }
+
+
+# ---------------------------------------------------------
+# 8️⃣ 주요 행사 디데이(D-Day) 조회 API
+# ---------------------------------------------------------
+@app.get("/dday")
+def get_dday():
+    """
+    현재 날짜를 기준으로 졸업식 및 주요 행사의 D-Day를 계산합니다.
+    """
+    today = datetime.now().date()
+    
+    try:
+        # 1. 졸업식 D-Day 계산
+        grad_date = datetime.strptime(GRADUATION_DATE, "%Y-%m-%d").date()
+        grad_dday = (grad_date - today).days
+        
+        # 2. 2027학년도 수능일 D-Day 계산 (2026년 11월 12일 가정)
+        csat_date = datetime.strptime("2026-11-12", "%Y-%m-%d").date()
+        csat_dday = (csat_date - today).days
+        
+        # 유닛별 상태 텍스트 가공
+        def format_dday(days):
+            if days > 0:
+                return f"D-{days}"
+            elif days == 0:
+                return "D-Day"
+            else:
+                return f"D+{abs(days)}"
+
+        return {
+            "success": True,
+            "today": today.strftime("%Y-%m-%d"),
+            "events": [
+                {
+                    "title": "대평고 졸업식 🎓",
+                    "target_date": GRADUATION_DATE,
+                    "days_left": grad_dday,
+                    "dday_text": format_dday(grad_dday)
+                },
+                {
+                    "title": "대학수학능력시험 📝",
+                    "target_date": "2026-11-12",
+                    "days_left": csat_dday,
+                    "dday_text": format_dday(csat_dday)
+                }
+            ]
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": "디데이 계산 중 에러가 발생했습니다.",
+            "error": str(e)
+        }
